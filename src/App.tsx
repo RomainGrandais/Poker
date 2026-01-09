@@ -206,6 +206,105 @@ const App = () => {
   }, [heroInput, boardInput, players, sims, position, stackBb, actionState]);
 
   const recommendation = useMemo(() => {
+    const getPreflopScore = (cards: string[]) => {
+      if (cards.length !== 2) {
+        return null;
+      }
+      const rankOrder: Record<string, number> = {
+        A: 12,
+        K: 11,
+        Q: 10,
+        J: 9,
+        T: 8,
+        9: 7,
+        8: 6,
+        7: 5,
+        6: 4,
+        5: 3,
+        4: 2,
+        3: 1,
+        2: 0
+      };
+      const [first, second] = cards;
+      const rankA = rankOrder[first[0]?.toUpperCase() ?? "2"];
+      const rankB = rankOrder[second[0]?.toUpperCase() ?? "2"];
+      const suited = first[1]?.toLowerCase() === second[1]?.toLowerCase();
+      const high = Math.max(rankA, rankB);
+      const low = Math.min(rankA, rankB);
+      const isPair = rankA === rankB;
+      const gap = high - low;
+      let score = (high + low) / 24;
+      if (isPair) {
+        score += 0.35;
+      }
+      if (suited) {
+        score += 0.08;
+      }
+      if (gap === 1) {
+        score += 0.06;
+      } else if (gap === 2) {
+        score += 0.03;
+      } else if (gap >= 4) {
+        score -= 0.05;
+      }
+      if (high >= 10) {
+        score += 0.06;
+      }
+      return Math.max(0, Math.min(1, score));
+    };
+
+    if (actionState === "Unopened") {
+      let heroCards: string[] = [];
+      try {
+        heroCards = parseCards(heroInput);
+      } catch {
+        return null;
+      }
+      const preflopScore = getPreflopScore(heroCards);
+      if (preflopScore === null) {
+        return null;
+      }
+      const rangeTable: Record<
+        string,
+        { open: number; size: string; push: number }
+      > = {
+        UTG: { open: 0.62, size: "2.1bb", push: 0.68 },
+        HJ: { open: 0.58, size: "2.1bb", push: 0.66 },
+        CO: { open: 0.54, size: "2.2bb", push: 0.64 },
+        BTN: { open: 0.46, size: "2.2bb", push: 0.6 },
+        SB: { open: 0.5, size: "2.5bb", push: 0.62 },
+        BB: { open: 0, size: "2.5bb", push: 0.6 }
+      };
+      const thresholds = rangeTable[position] ?? rangeTable.BTN;
+      const usePush = stackBb <= 12;
+      const openThreshold = usePush ? thresholds.push : thresholds.open;
+
+      if (position === "BB") {
+        return {
+          primary: "Check",
+          secondary: null,
+          tone: "🟠 Situationnelle",
+          reason: "Pas d’action d’open depuis la BB, jouez surtout en check."
+        };
+      }
+      if (preflopScore >= openThreshold) {
+        return {
+          primary: usePush ? "Push" : "Raise",
+          secondary: null,
+          tone: "🟢 Action optimale",
+          reason: usePush
+            ? `Range d’open/shove ${position} à ${stackBb}bb.`
+            : `Open ${thresholds.size} standard ${position} à ${stackBb}bb.`
+        };
+      }
+      return {
+        primary: "Fold",
+        secondary: null,
+        tone: "🔴 À éviter",
+        reason: `Hors range d’open ${position} à ${stackBb}bb.`
+      };
+    }
+
     if (!result) {
       return null;
     }

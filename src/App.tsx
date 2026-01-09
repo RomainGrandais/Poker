@@ -761,6 +761,26 @@ const App = () => {
                     <span className="value">{recommendation.secondary}</span>
                   </div>
                 ) : null}
+                {result ? (
+                  <div className="recommendation__stats">
+                    <div>
+                      <span className="label">Equity</span>
+                      <span className="value">{formatPercent(result.equity)}</span>
+                    </div>
+                    <div>
+                      <span className="label">Win</span>
+                      <span className="value">{formatPercent(result.win)}</span>
+                    </div>
+                    <div>
+                      <span className="label">Tie</span>
+                      <span className="value">{formatPercent(result.tie)}</span>
+                    </div>
+                    <div>
+                      <span className="label">Lose</span>
+                      <span className="value">{formatPercent(result.lose)}</span>
+                    </div>
+                  </div>
+                ) : null}
                 <p className="meta">{recommendation.reason}</p>
               </div>
             ) : (

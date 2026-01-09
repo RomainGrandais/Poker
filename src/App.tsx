@@ -206,51 +206,65 @@ const App = () => {
   }, [heroInput, boardInput, players, sims, position, stackBb, actionState]);
 
   const recommendation = useMemo(() => {
-    const getPreflopScore = (cards: string[]) => {
+    const rankOrder = ["A", "K", "Q", "J", "T", "9", "8", "7", "6", "5", "4", "3", "2"];
+    const rankIndex = (rank: string) => rankOrder.indexOf(rank.toUpperCase());
+    const normalizeHand = (cards: string[]) => {
       if (cards.length !== 2) {
         return null;
       }
-      const rankOrder: Record<string, number> = {
-        A: 12,
-        K: 11,
-        Q: 10,
-        J: 9,
-        T: 8,
-        9: 7,
-        8: 6,
-        7: 5,
-        6: 4,
-        5: 3,
-        4: 2,
-        3: 1,
-        2: 0
-      };
       const [first, second] = cards;
-      const rankA = rankOrder[first[0]?.toUpperCase() ?? "2"];
-      const rankB = rankOrder[second[0]?.toUpperCase() ?? "2"];
+      const rankA = first[0]?.toUpperCase() ?? "2";
+      const rankB = second[0]?.toUpperCase() ?? "2";
       const suited = first[1]?.toLowerCase() === second[1]?.toLowerCase();
-      const high = Math.max(rankA, rankB);
-      const low = Math.min(rankA, rankB);
-      const isPair = rankA === rankB;
-      const gap = high - low;
-      let score = (high + low) / 24;
-      if (isPair) {
-        score += 0.35;
+      if (rankA === rankB) {
+        return `${rankA}${rankB}`;
       }
-      if (suited) {
-        score += 0.08;
+      const high = rankIndex(rankA) <= rankIndex(rankB) ? rankA : rankB;
+      const low = high === rankA ? rankB : rankA;
+      return `${high}${low}${suited ? "s" : "o"}`;
+    };
+
+    const expandPairs = (from: string) => {
+      const startIndex = rankIndex(from);
+      return rankOrder
+        .slice(0, startIndex + 1)
+        .map((rank) => `${rank}${rank}`);
+    };
+
+    const expandSuitedPlus = (from: string) => {
+      const high = from[0];
+      const low = from[1];
+      const highIndex = rankIndex(high);
+      const lowIndex = rankIndex(low);
+      return rankOrder
+        .slice(highIndex + 1, lowIndex + 1)
+        .map((rank) => `${high}${rank}s`);
+    };
+
+    const expandOffsuitPlus = (from: string) => {
+      const high = from[0];
+      const low = from[1];
+      const highIndex = rankIndex(high);
+      const lowIndex = rankIndex(low);
+      return rankOrder
+        .slice(highIndex + 1, lowIndex + 1)
+        .map((rank) => `${high}${rank}o`);
+    };
+
+    const buildRange = (rules: string[]) => {
+      const range = new Set<string>();
+      for (const rule of rules) {
+        if (rule.endsWith("+") && rule.length === 3) {
+          expandPairs(rule[0] ?? "2").forEach((hand) => range.add(hand));
+        } else if (rule.endsWith("s+")) {
+          expandSuitedPlus(rule.replace("+", "")).forEach((hand) => range.add(hand));
+        } else if (rule.endsWith("o+")) {
+          expandOffsuitPlus(rule.replace("+", "")).forEach((hand) => range.add(hand));
+        } else {
+          range.add(rule);
+        }
       }
-      if (gap === 1) {
-        score += 0.06;
-      } else if (gap === 2) {
-        score += 0.03;
-      } else if (gap >= 4) {
-        score -= 0.05;
-      }
-      if (high >= 10) {
-        score += 0.06;
-      }
-      return Math.max(0, Math.min(1, score));
+      return range;
     };
 
     if (actionState === "Unopened") {
@@ -260,43 +274,133 @@ const App = () => {
       } catch {
         return null;
       }
-      const preflopScore = getPreflopScore(heroCards);
-      if (preflopScore === null) {
+      const handKey = normalizeHand(heroCards);
+      if (!handKey) {
         return null;
       }
-      const rangeTable: Record<
-        string,
-        { open: number; size: string; push: number }
-      > = {
-        UTG: { open: 0.62, size: "2.1bb", push: 0.68 },
-        HJ: { open: 0.58, size: "2.1bb", push: 0.66 },
-        CO: { open: 0.54, size: "2.2bb", push: 0.64 },
-        BTN: { open: 0.46, size: "2.2bb", push: 0.6 },
-        SB: { open: 0.5, size: "2.5bb", push: 0.62 },
-        BB: { open: 0, size: "2.5bb", push: 0.6 }
-      };
-      const thresholds = rangeTable[position] ?? rangeTable.BTN;
+
+      const premiumHands = new Set(["AA", "KK", "QQ", "AKs"]);
       const usePush = stackBb <= 12;
-      const openThreshold = usePush ? thresholds.push : thresholds.open;
+
+      const baseRanges: Record<string, { open: Set<string>; size: string }> = {
+        UTG: {
+          size: "2.1bb",
+          open: buildRange([
+            "22+",
+            "ATs+",
+            "KQs",
+            "QJs",
+            "JTs",
+            "T9s",
+            "98s",
+            "AQo+",
+            "KQo"
+          ])
+        },
+        HJ: {
+          size: "2.1bb",
+          open: buildRange([
+            "22+",
+            "A9s+",
+            "KJs",
+            "QTs",
+            "J9s",
+            "ATs+",
+            "KQs",
+            "QJs",
+            "JTs",
+            "T9s",
+            "98s",
+            "AQo+",
+            "KQo"
+          ])
+        },
+        CO: {
+          size: "2.2bb",
+          open: buildRange([
+            "22+",
+            "A7s+",
+            "KTs+",
+            "QTs+",
+            "J9s+",
+            "T9s",
+            "98s",
+            "AQo+",
+            "KTo+",
+            "QTo+",
+            "T9o"
+          ])
+        },
+        BTN: {
+          size: "2.2bb",
+          open: buildRange([
+            "22+",
+            "A2s+",
+            "K9s+",
+            "Q9s+",
+            "J9s+",
+            "T8s+",
+            "98s",
+            "87s",
+            "76s",
+            "ATo+",
+            "KJo+",
+            "QJo"
+          ])
+        },
+        SB: {
+          size: "2.5bb",
+          open: buildRange([
+            "22+",
+            "A7s+",
+            "KTs+",
+            "QTs+",
+            "JTs",
+            "T9s",
+            "98s",
+            "AQo+",
+            "AJo+",
+            "KQo"
+          ])
+        },
+        BB: {
+          size: "2.5bb",
+          open: new Set<string>()
+        }
+      };
+
+      const ranges = baseRanges[position] ?? baseRanges.BTN;
+      const inRange = ranges.open.has(handKey);
+
+      if (premiumHands.has(handKey)) {
+        return {
+          primary: usePush ? "Push" : "Raise",
+          secondary: null,
+          tone: "🟢 Optimal",
+          reason: "Main premium, valeur claire à ouvrir."
+        };
+      }
 
       if (position === "BB") {
         return {
           primary: "Check",
           secondary: null,
-          tone: "🟠 Situationnelle",
-          reason: "Pas d’action d’open depuis la BB, jouez surtout en check."
+          tone: "🟠 Situationnel",
+          reason: "Pas d’action d’open depuis la BB, restez prudent."
         };
       }
-      if (preflopScore >= openThreshold) {
+
+      if (inRange) {
         return {
           primary: usePush ? "Push" : "Raise",
           secondary: null,
-          tone: "🟢 Action optimale",
+          tone: "🟢 Optimal",
           reason: usePush
             ? `Range d’open/shove ${position} à ${stackBb}bb.`
-            : `Open ${thresholds.size} standard ${position} à ${stackBb}bb.`
+            : `Open ${ranges.size} standard ${position} à ${stackBb}bb.`
         };
       }
+
       return {
         primary: "Fold",
         secondary: null,
@@ -313,6 +417,7 @@ const App = () => {
     const isMultiway = players > 2;
     const stackTier =
       stackBb <= 12 ? "short" : stackBb <= 28 ? "mid" : "deep";
+    const inPosition = position === "BTN" || position === "CO";
     const positionWeight =
       position === "BTN" || position === "CO"
         ? 0.04
@@ -323,8 +428,8 @@ const App = () => {
             : position === "BB"
               ? -0.02
               : -0.03;
-    const multiwayPenalty = isMultiway ? -0.05 : 0;
-    const stackPressure = stackTier === "short" ? -0.05 : stackTier === "mid" ? 0 : 0.03;
+    const multiwayPenalty = isMultiway ? -0.08 : 0;
+    const stackPressure = stackTier === "short" ? -0.07 : stackTier === "mid" ? -0.02 : 0.02;
     const adjustedEquity = Math.max(
       0,
       Math.min(1, result.equity + positionWeight + multiwayPenalty + stackPressure)
@@ -335,72 +440,58 @@ const App = () => {
     let primary = "Fold";
     let secondary = "Check";
     let tone = "🔴 À éviter";
-    let reason = "Équité insuffisante dans le contexte actuel.";
+    let reason = "Edge insuffisant pour justifier la variance.";
 
     if (actionState === "Postflop") {
       if (equityLabel === "high") {
         primary = stackTier === "short" ? "Push" : "Raise";
         secondary = "Call";
-        tone = "🟢 Action optimale";
-        reason = "Vous avez une équité forte, surtout avec l’avantage de position.";
+        tone = "🟢 Optimal";
+        reason = inPosition
+          ? "Équité forte, prenez un pot contrôlé avec value claire."
+          : "Équité forte, value simple sans multi-barrel."
       } else if (equityLabel === "medium") {
-        primary = "Call";
-        secondary = "Check";
-        tone = "🟠 Situationnelle";
-        reason = "Équité correcte, privilégiez une ligne qui réalise l’équité.";
+        primary = inPosition ? "Check" : "Call";
+        secondary = inPosition ? "Call" : "Check";
+        tone = "🟠 Situationnel";
+        reason = "Équité moyenne, préférez une ligne prudente pour réaliser l’équité.";
       } else {
         primary = "Check";
         secondary = "Fold";
         tone = "🔴 À éviter";
-        reason = "Équité faible et réalisation difficile sur plusieurs streets.";
+        reason = "Équité faible, évitez les spots à variance inutile.";
       }
     } else if (actionState === "Facing shove") {
-      if (adjustedEquity >= 0.55 || (stackTier === "short" && adjustedEquity >= 0.5)) {
+      const callThreshold = stackTier === "short" ? 0.62 : 0.68;
+      if (adjustedEquity >= callThreshold) {
         primary = "Call";
-        secondary = "Push";
-        tone = "🟢 Action optimale";
-        reason = "Votre équité justifie le call face à un shove.";
+        secondary = null;
+        tone = "🟢 Optimal";
+        reason = "Équité au-dessus des pot odds, call défendable.";
       } else {
         primary = "Fold";
         secondary = "Call";
         tone = "🔴 À éviter";
-        reason = "L’équité ne couvre pas suffisamment la pression tournoi.";
+        reason = "Pot odds insuffisantes, pression tournoi trop élevée.";
       }
     } else if (actionState === "Facing raise") {
-      if (equityLabel === "high") {
+      const callThreshold = isHeadsUp ? 0.58 : 0.64;
+      const raiseThreshold = stackTier === "short" ? 0.7 : 0.72;
+      if (adjustedEquity >= raiseThreshold) {
         primary = stackTier === "short" ? "Push" : "Raise";
         secondary = "Call";
-        tone = "🟢 Action optimale";
-        reason = "Main dominante, profitez de la fold equity.";
-      } else if (equityLabel === "medium") {
-        primary = isHeadsUp ? "Call" : "Fold";
-        secondary = isHeadsUp ? "Raise" : "Call";
-        tone = "🟠 Situationnelle";
-        reason = isHeadsUp
-          ? "Équité jouable en heads-up, évitez d’élargir le pot inutilement."
-          : "En multiway, l’équité se réalise moins bien.";
+        tone = "🟢 Optimal";
+        reason = "Équité claire vs pot odds, agressivité simple et contrôlée.";
+      } else if (adjustedEquity >= callThreshold) {
+        primary = "Call";
+        secondary = "Fold";
+        tone = "🟠 Situationnel";
+        reason = "Call acceptable seulement si l’équité dépasse les pot odds.";
       } else {
         primary = "Fold";
         secondary = "Call";
         tone = "🔴 À éviter";
-        reason = "Trop faible pour payer une relance.";
-      }
-    } else {
-      if (equityLabel === "high") {
-        primary = stackTier === "short" ? "Push" : "Raise";
-        secondary = "Call";
-        tone = "🟢 Action optimale";
-        reason = "Bonne équité et initiative profitable.";
-      } else if (equityLabel === "medium") {
-        primary = position === "BB" ? "Check" : "Raise";
-        secondary = "Call";
-        tone = "🟠 Situationnelle";
-        reason = "Équité jouable, adaptez selon la table.";
-      } else {
-        primary = position === "BB" ? "Check" : "Fold";
-        secondary = "Call";
-        tone = "🔴 À éviter";
-        reason = "Pas assez d’équité pour ouvrir ou défendre large.";
+        reason = "Pas assez d’équité pour continuer sans risque élevé.";
       }
     }
 
@@ -411,7 +502,7 @@ const App = () => {
       reason,
       adjustedEquity
     };
-  }, [actionState, players, position, result, stackBb]);
+  }, [actionState, heroInput, players, position, result, stackBb]);
 
   return (
     <div className="app">

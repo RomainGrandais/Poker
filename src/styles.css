@@ -57,12 +57,22 @@ body {
   gap: 16px;
 }
 
+.grid-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
 label {
   display: flex;
   flex-direction: column;
   font-size: 0.9rem;
   color: #374151;
   gap: 6px;
+}
+
+.field {
+  position: relative;
 }
 
 input,
@@ -109,45 +119,29 @@ button.primary:disabled {
   border: 1px solid #fecaca;
 }
 
-.card-picker {
+.picker-inline {
+  margin-top: 10px;
   border-radius: 14px;
   border: 1px solid #e5e7eb;
-  padding: 16px;
+  padding: 12px;
   background: #f9fafb;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
-.card-picker__header {
+.picker-inline__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   font-weight: 600;
   color: #111827;
-  gap: 12px;
-  flex-wrap: wrap;
 }
 
-.card-picker__targets {
+.picker-inline__actions {
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.pill {
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
-  border-radius: 999px;
-  padding: 6px 12px;
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.pill--active {
-  background: #111827;
-  color: #ffffff;
-  border-color: #111827;
+  align-items: center;
+  gap: 10px;
 }
 
 .card-picker__row {
@@ -184,19 +178,6 @@ button.primary:disabled {
 
 .suit--black {
   color: #111827;
-}
-
-.card-picker__selection {
-  display: grid;
-  gap: 12px;
-}
-
-.selection-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  font-size: 0.9rem;
-  color: #374151;
 }
 
 .selection-cards {
@@ -237,6 +218,37 @@ button.primary:disabled {
 .results__grid {
   display: grid;
   gap: 16px;
+}
+
+.recommendation {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.recommendation h3 {
+  margin: 0;
+}
+
+.recommendation__card {
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #f8fafc;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.recommendation__tone {
+  font-weight: 600;
+}
+
+.recommendation__actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .result {
